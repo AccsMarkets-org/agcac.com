@@ -1,0 +1,1155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USER / AUTH ────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("Staff")
+  active    Boolean  @default(true)
+  lastLogin DateTime?
+  phone     String?
+  notes     String?  @db.Text
+
+  assignedLeads        Lead[]           @relation("AssignedLeads")
+  callLogs             CallLog[]
+  followUps            FollowUp[]
+  siteVisits           SiteVisit[]      @relation("AssignedTech")
+  assignedApplications JobApplication[] @relation("AssignedApplications")
+  conductedInterviews  Interview[]      @relation("InterviewerUser")
+}
+
+// ─── LEADS ──────────────────────────────────────────────────────────────────
+
+model Lead {
+  id        String   @id @default(cuid())
+  leadId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name      String
+  phone     String
+  whatsapp  String?
+  email     String?
+  location  String?
+  area      String?
+
+  service         String
+  propertyType    String?
+  projectType     String?
+  urgency         String  @default("Normal")
+  message         String? @db.Text
+  numberOfRooms   String?
+  approximateArea String?
+  numberOfACUnits String?
+  existingSystem  String?
+  budgetRange     String?
+
+  sourcePage  String?
+  formName    String?
+  ctaClicked  String?
+  leadSource  String?
+
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+  gclid       String?
+  fbclid      String?
+
+  deviceType  String?
+  browser     String?
+  referrer    String?
+  landingPage String?
+  ipAddress   String?
+
+  status          String    @default("New")
+  priority        String    @default("Normal")
+  assignedToId    String?
+  assignedTo      User?     @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  followUpDate    DateTime?
+  internalNotes   String?   @db.Text
+  whatsappMessage String?   @db.Text
+
+  projectName     String?
+  projectCategory String?
+
+  consentGiven           Boolean   @default(false)
+  consentText            String?   @db.Text
+  consentTimestamp       DateTime?
+  privacyPolicyVersion   String?
+  termsVersion           String?
+  userAgentPlaceholder   String?
+
+  deletedAt DateTime?
+
+  followUps   FollowUp[]
+  callLogs    CallLog[]
+  siteVisits  SiteVisit[]
+  quotations  Quotation[]
+  activityLog ActivityLog[]
+}
+
+// ─── FOLLOW-UPS ─────────────────────────────────────────────────────────────
+
+model FollowUp {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  leadId       String
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  dueAt        DateTime
+  note         String?  @db.Text
+  assignedById String?
+  assignedBy   User?    @relation(fields: [assignedById], references: [id])
+  status       String   @default("Pending")
+  completedAt  DateTime?
+}
+
+// ─── CALL LOGS ──────────────────────────────────────────────────────────────
+
+model CallLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  staffId   String?
+  staff     User?    @relation(fields: [staffId], references: [id])
+  result    String?
+  note      String?  @db.Text
+  nextFollowUp DateTime?
+}
+
+// ─── SITE VISITS ────────────────────────────────────────────────────────────
+
+model SiteVisit {
+  id           String   @id @default(cuid())
+  visitId      String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  leadId       String?
+  lead         Lead?    @relation(fields: [leadId], references: [id])
+
+  customerName String
+  phone        String
+  location     String
+  mapsLink     String?
+  service      String?
+  visitDate    DateTime?
+  visitTime    String?
+
+  assignedTechId String?
+  assignedTech   User?   @relation("AssignedTech", fields: [assignedTechId], references: [id])
+
+  status            String  @default("Scheduled")
+  notes             String? @db.Text
+  recommendation    String? @db.Text
+  estimatedCost     String?
+  customerDecision  String?
+}
+
+// ─── QUOTATIONS ──────────────────────────────────────────────────────────────
+
+model Quotation {
+  id           String   @id @default(cuid())
+  quoteId      String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  leadId       String?
+  lead         Lead?    @relation(fields: [leadId], references: [id])
+
+  customerName String
+  phone        String
+  email        String?
+  address      String?
+  service      String
+  quoteDate    DateTime @default(now())
+  validUntil   DateTime?
+
+  discount     Float    @default(0)
+  vat          Float    @default(5)
+  notes        String?  @db.Text
+  terms        String?  @db.Text
+  status       String   @default("Draft")
+
+  items        QuotationItem[]
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String    @db.Text
+  quantity    Float     @default(1)
+  unitPrice   Float
+  total       Float
+}
+
+// ─── INVOICES ────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id          String   @id @default(cuid())
+  invoiceId   String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  quoteId     String?
+
+  customerName  String   @default("")
+  phone         String   @default("")
+  address       String?
+  service       String   @default("")
+
+  invoiceDate DateTime @default(now())
+  dueDate     DateTime?
+  notes       String?  @db.Text
+  discount    Float    @default(0)
+  vat         Float    @default(5)
+  status      String   @default("Unpaid")
+
+  items       InvoiceItem[]
+  payments    Payment[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String  @db.Text
+  quantity    Float   @default(1)
+  unitPrice   Float
+  total       Float
+}
+
+// ─── PAYMENTS ────────────────────────────────────────────────────────────────
+
+model Payment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  amount    Float
+  method    String   @default("Cash")
+  reference String?
+  note      String?  @db.Text
+}
+
+// ─── CUSTOMERS ────────────────────────────────────────────────────────────────
+
+model Customer {
+  id           String   @id @default(cuid())
+  customerId   String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  name         String
+  phone        String
+  email        String?
+  location     String?
+  area         String?
+  propertyType String?
+  notes        String?  @db.Text
+  totalValue   Float    @default(0)
+  lastService  DateTime?
+
+  invoices     Invoice[]
+  amcContracts AMCContract[]
+}
+
+// ─── AMC CONTRACTS ────────────────────────────────────────────────────────────
+
+model AMCContract {
+  id             String   @id @default(cuid())
+  amcId          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+
+  customerName   String
+  phone          String
+  location       String
+  propertyType   String?
+  plan           String   @default("Standard")
+  startDate      DateTime
+  endDate        DateTime
+  numberOfVisits Int      @default(4)
+  visitFrequency String   @default("Quarterly")
+  equipment      String?  @db.Text
+  contractValue  Float?
+  paymentStatus  String   @default("Pending")
+  notes          String?  @db.Text
+  status         String   @default("Active")
+}
+
+// ─── TECHNICIAN JOBS ──────────────────────────────────────────────────────────
+
+model TechnicianJob {
+  id               String   @id @default(cuid())
+  jobId            String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  leadId           String?
+  customerName     String
+  phone            String
+  location         String
+  service          String
+  jobDate          DateTime?
+  jobTime          String?
+  materials        String?  @db.Text
+  notes            String?  @db.Text
+  workNotes        String?  @db.Text
+  completionReport String?  @db.Text
+  technicianName   String?
+  status           String   @default("Assigned")
+}
+
+// ─── ACTIVITY LOG ─────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  action    String
+  detail    String?  @db.Text
+  userId    String?
+  userName  String?
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+
+model Settings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String @db.Text
+}
+
+// ─── CERTIFICATES ─────────────────────────────────────────────────────────────
+
+model Certificate {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  name       String
+  category   String    @default("General")
+  issueDate  DateTime?
+  expiryDate DateTime?
+  status     String    @default("Active")
+  showOnSite Boolean   @default(true)
+  fileUrl    String?
+  notes      String?   @db.Text
+}
+
+// ─── TEAM MEMBERS ─────────────────────────────────────────────────────────────
+
+model TeamMember {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  name       String
+  role       String
+  department String?
+  phone      String?
+  email      String?
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  notes      String?  @db.Text
+}
+
+// ─── PORTFOLIO PROJECTS ───────────────────────────────────────────────────────
+
+model PortfolioProject {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  title       String
+  category    String
+  location    String?
+  systemType  String?
+  scopeOfWork String?  @db.Text
+  description String?  @db.Text
+  featured    Boolean  @default(false)
+  showOnSite  Boolean  @default(true)
+  imageUrl    String?
+  year        Int?
+  clientName  String?
+  status      String   @default("Active")
+}
+
+// ─── SERVICE CMS ──────────────────────────────────────────────────────────────
+
+model ServiceCMS {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  icon        String?
+  imageUrl    String?
+  priceRange  String?
+  seoTitle    String?
+  seoDesc     String?  @db.Text
+  showOnSite  Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  status      String   @default("Active")
+}
+
+// ─── WEBSITE CONTENT ──────────────────────────────────────────────────────────
+
+model WebsiteContent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  key       String   @unique
+  section   String   @default("General")
+  title     String
+  content   String   @db.LongText
+  status    String   @default("Active")
+  updatedBy String?
+}
+
+// ─── PURCHASE INVOICES (enhanced for VAT tax system) ─────────────────────────
+
+model PurchaseInvoice {
+  id                String               @id @default(cuid())
+  invoiceRef        String               @unique
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  supplierName      String
+  supplierTRN       String?
+  trnVerified       String               @default("NotVerified")
+  supplierAddress   String?
+  invoiceDate       DateTime
+  invoiceNumber     String?
+  taxPeriodId       String?
+  category          String               @default("General")
+  expenseType       String?
+  netAmount         Float                @default(0)
+  vatAmount         Float                @default(0)
+  totalAmount       Float                @default(0)
+  vatRate           Float                @default(5)
+  vatTreatment      String               @default("Standard")
+  recoverableVAT    Float                @default(0)
+  nonRecoverableVAT Float                @default(0)
+  paymentStatus     String               @default("Unpaid")
+  approvalStatus    String               @default("Pending")
+  approvedBy        String?
+  approvedAt        DateTime?
+  documentId        String?
+  notes             String?              @db.Text
+  fileUrl           String?
+  status            String               @default("Pending")
+  deletedAt         DateTime?
+  items             PurchaseInvoiceItem[]
+}
+
+model PurchaseInvoiceItem {
+  id          String          @id @default(cuid())
+  purchaseId  String
+  purchase    PurchaseInvoice @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  description String          @db.Text
+  quantity    Float           @default(1)
+  unitPrice   Float
+  discount    Float           @default(0)
+  vatRate     Float           @default(5)
+  vatAmount   Float           @default(0)
+  total       Float
+}
+
+// ─── VAT RETURNS (enhanced workflow) ─────────────────────────────────────────
+
+model VATReturn {
+  id               String    @id @default(cuid())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  period           String
+  startDate        DateTime
+  endDate          DateTime
+  createdBy        String    @default("")
+  // Output (Sales)
+  standardSales    Float     @default(0)
+  zeroRatedSales   Float     @default(0)
+  exemptSales      Float     @default(0)
+  outputVAT        Float     @default(0)
+  salesNet         Float     @default(0)
+  // Input (Purchases)
+  standardPurchases Float    @default(0)
+  recoverableInput Float     @default(0)
+  nonRecoverableInput Float  @default(0)
+  inputVAT         Float     @default(0)
+  purchasesNet     Float     @default(0)
+  // Adjustments
+  adjustments      Float     @default(0)
+  adjustmentNotes  String?   @db.Text
+  // Net
+  netVAT           Float     @default(0)
+  // Workflow
+  status           String    @default("Draft")
+  accountantApprovedBy String?
+  accountantApprovedAt DateTime?
+  adminApprovedBy  String?
+  adminApprovedAt  DateTime?
+  // Submission
+  ftaRefNumber     String?
+  submittedAt      DateTime?
+  submittedBy      String?
+  paymentRef       String?
+  paidAt           DateTime?
+  confirmationFileUrl String?
+  closedAt         DateTime?
+  notes            String?   @db.Text
+}
+
+// ─── TAX SALES INVOICES ───────────────────────────────────────────────────────
+
+model TaxSalesInvoice {
+  id              String                  @id @default(cuid())
+  invoiceRef      String                  @unique
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  createdBy       String                  @default("")
+  invoiceNumber   String
+  invoiceDate     DateTime
+  dateOfSupply    DateTime?
+  customerName    String
+  customerTRN     String?
+  customerAddress String?
+  serviceType     String                  @default("AC Service")
+  taxPeriodId     String?
+  linkedQuoteId   String?
+  linkedJobId     String?
+  netAmount       Float                   @default(0)
+  vatRate         Float                   @default(5)
+  vatAmount       Float                   @default(0)
+  totalAmount     Float                   @default(0)
+  vatTreatment    String                  @default("Standard")
+  paymentStatus   String                  @default("Unpaid")
+  approvalStatus  String                  @default("Pending")
+  approvedBy      String?
+  approvedAt      DateTime?
+  documentId      String?
+  notes           String?                 @db.Text
+  status          String                  @default("Draft")
+  deletedAt       DateTime?
+  items           TaxSalesInvoiceItem[]
+}
+
+model TaxSalesInvoiceItem {
+  id          String          @id @default(cuid())
+  invoiceId   String
+  invoice     TaxSalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String          @db.Text
+  quantity    Float           @default(1)
+  unitPrice   Float
+  discount    Float           @default(0)
+  netAmount   Float           @default(0)
+  vatRate     Float           @default(5)
+  vatAmount   Float           @default(0)
+  total       Float
+}
+
+// ─── TAX DOCUMENTS (uploaded invoice files) ──────────────────────────────────
+
+model TaxDocument {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  fileName      String
+  originalName  String
+  fileType      String
+  fileSize      Int       @default(0)
+  filePath      String    @db.VarChar(1000)
+  category      String    @default("PurchaseInvoice")
+  linkedId      String?
+  linkedType    String?
+  uploadedBy    String    @default("")
+  ocrProcessed  Boolean   @default(false)
+  ocrResultId   String?
+  approvalStatus String   @default("Pending")
+  notes         String?   @db.Text
+  deletedAt     DateTime?
+}
+
+// ─── OCR RESULTS ─────────────────────────────────────────────────────────────
+
+model OCRResult {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  documentId      String    @unique
+  rawText         String    @db.LongText
+  confidence      Float?
+  invoiceNumber   String?
+  invoiceDate     String?
+  dateOfSupply    String?
+  supplierName    String?
+  supplierAddress String?   @db.Text
+  supplierTRN     String?
+  customerName    String?
+  customerAddress String?   @db.Text
+  customerTRN     String?
+  subtotal        Float?
+  vatRate         Float?
+  vatAmount       Float?
+  totalAmount     Float?
+  currency        String    @default("AED")
+  paymentTerms    String?   @db.Text
+  poNumber        String?
+  bankDetails     String?   @db.Text
+  lineItemsRaw    String?   @db.Text
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  corrected       Boolean   @default(false)
+  status          String    @default("Pending")
+}
+
+// ─── TAX PERIODS ─────────────────────────────────────────────────────────────
+
+model TaxPeriod {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name        String
+  type        String    @default("Quarterly")
+  startDate   DateTime
+  endDate     DateTime
+  status      String    @default("Open")
+  vatReturnId String?
+  closedAt    DateTime?
+  closedBy    String?
+}
+
+// ─── CORPORATE TAX RETURNS ────────────────────────────────────────────────────
+
+model CorporateTaxReturn {
+  id                       String    @id @default(cuid())
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  createdBy                String    @default("")
+  financialYear            String
+  yearStart                DateTime
+  yearEnd                  DateTime
+  revenue                  Float     @default(0)
+  costOfSales              Float     @default(0)
+  grossProfit              Float     @default(0)
+  operatingExpenses        Float     @default(0)
+  otherIncome              Float     @default(0)
+  otherExpenses            Float     @default(0)
+  accountingNetProfit      Float     @default(0)
+  nonDeductibleExpenses    Float     @default(0)
+  deductibleAdjustments    Float     @default(0)
+  exemptIncome             Float     @default(0)
+  depreciationAdjustment   Float     @default(0)
+  interestLimitation       Float     @default(0)
+  relatedPartyAdjustments  Float     @default(0)
+  taxLossesBF              Float     @default(0)
+  taxLossesUsed            Float     @default(0)
+  taxableIncome            Float     @default(0)
+  taxableUpTo375k          Float     @default(0)
+  taxableAbove375k         Float     @default(0)
+  ctAt0Pct                 Float     @default(0)
+  ctAt9Pct                 Float     @default(0)
+  totalCTPayable           Float     @default(0)
+  creditsPayments          Float     @default(0)
+  netCTPayable             Float     @default(0)
+  status                   String    @default("Draft")
+  accountantApprovedBy     String?
+  accountantApprovedAt     DateTime?
+  adminApprovedBy          String?
+  adminApprovedAt          DateTime?
+  ftaRefNumber             String?
+  submittedAt              DateTime?
+  submittedBy              String?
+  paymentRef               String?
+  paidAt                   DateTime?
+  confirmationFileUrl      String?
+  notes                    String?   @db.Text
+}
+
+// ─── TAX AUDIT LOG ────────────────────────────────────────────────────────────
+
+model TaxAuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  userId      String   @default("")
+  userEmail   String   @default("")
+  userRole    String   @default("")
+  action      String
+  module      String   @default("Tax")
+  recordId    String?
+  recordType  String?
+  beforeValue String?  @db.Text
+  afterValue  String?  @db.Text
+  description String   @db.Text
+  ipAddress   String?
+}
+
+// ─── TAX SETTINGS ─────────────────────────────────────────────────────────────
+
+model TaxSetting {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  key         String   @unique
+  value       String   @db.Text
+  category    String   @default("General")
+  description String?  @db.Text
+}
+
+// ─── LEGAL PAGES ──────────────────────────────────────────────────────────────
+
+model LegalPage {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  slug        String    @unique
+  title       String
+  content     String    @db.LongText
+  status      String    @default("Published")
+  version     Int       @default(1)
+  lastUpdated DateTime  @default(now())
+  publishedAt DateTime?
+  createdBy   String    @default("system")
+  updatedBy   String    @default("system")
+  changeNote  String?   @db.Text
+  versions    LegalPageVersion[]
+}
+
+model LegalPageVersion {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  pageId      String
+  page        LegalPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  version     Int
+  title       String
+  content     String    @db.LongText
+  updatedBy   String    @default("system")
+  changeNote  String?   @db.Text
+  status      String    @default("Archived")
+}
+
+// ─── COOKIE CONSENT ───────────────────────────────────────────────────────────
+
+model CookieConsent {
+  id                  String   @id @default(cuid())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  anonymousId         String
+  essential           Boolean  @default(true)
+  analytics           Boolean  @default(false)
+  advertising         Boolean  @default(false)
+  functional          Boolean  @default(false)
+  consentTimestamp    DateTime @default(now())
+  userAgent           String?  @db.Text
+  ipAddressPlaceholder String?
+}
+
+// ─── PRIVACY REQUESTS ─────────────────────────────────────────────────────────
+
+model PrivacyRequest {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  requestId   String   @unique
+  fullName    String
+  phone       String
+  email       String
+  requestType String
+  details     String?  @db.Text
+  status      String   @default("New")
+  adminNotes  String?  @db.Text
+  resolvedBy  String?
+  resolvedAt  DateTime?
+}
+
+// ─── CONSENT LOG ──────────────────────────────────────────────────────────────
+
+model ConsentLog {
+  id                   String   @id @default(cuid())
+  createdAt            DateTime @default(now())
+  leadId               String?
+  formName             String
+  consentText          String   @db.Text
+  privacyPolicyVersion String   @default("1.0")
+  termsVersion         String   @default("1.0")
+  sourcePage           String?
+  consentTimestamp     DateTime @default(now())
+  userAgent            String?  @db.Text
+  ipAddressPlaceholder String?
+}
+
+// ─── AI AUTOMATION SYSTEM ────────────────────────────────────────────────────
+
+model AIDocument {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  docId            String   @unique
+  fileName         String
+  originalName     String
+  fileType         String
+  fileSize         Int      @default(0)
+  filePath         String   @db.VarChar(1000)
+  fileHash         String?
+  documentType     String   @default("Unknown")
+  uploadSource     String   @default("Manual")
+  uploadedById     String   @default("")
+  uploadedByEmail  String   @default("")
+  processingStatus String   @default("Uploaded")
+  reviewStatus     String   @default("Pending")
+  confidenceScore  Float    @default(0)
+  ocrRawText       String?  @db.LongText
+  extractedData    String?  @db.Text
+  validationData   String?  @db.Text
+  matchingData     String?  @db.Text
+  linkedInvoiceId  String?
+  linkedCustomerId String?
+  linkedSupplierId String?
+  linkedProjectId  String?
+  notes            String?  @db.Text
+  rejectionReason  String?  @db.Text
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  approvedBy       String?
+  approvedAt       DateTime?
+  taxEntryCreated  Boolean  @default(false)
+  deletedAt        DateTime?
+  reviewTasks      AIReviewTask[]
+  warnings         AIValidationWarning[]
+}
+
+model AIReviewTask {
+  id              String     @id @default(cuid())
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  taskId          String     @unique
+  documentId      String
+  document        AIDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status          String     @default("NeedsReview")
+  assignedTo      String?
+  assignedAt      DateTime?
+  priority        String     @default("Normal")
+  reviewType      String     @default("InvoiceExtraction")
+  notes           String?    @db.Text
+  reviewerNotes   String?    @db.Text
+  actionTaken     String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  extractionEdits String?    @db.Text
+  postingDetails  String?    @db.Text
+}
+
+model AIValidationWarning {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  documentId  String
+  document    AIDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  type        String
+  severity    String     @default("Warning")
+  message     String     @db.Text
+  field       String?
+  resolved    Boolean    @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+}
+
+model AIAutomationRule {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ruleId      String   @unique
+  name        String
+  description String?  @db.Text
+  trigger     String
+  conditions  String   @db.Text
+  actions     String   @db.Text
+  priority    Int      @default(0)
+  active      Boolean  @default(true)
+  runCount    Int      @default(0)
+  lastRun     DateTime?
+  createdBy   String   @default("")
+}
+
+model AISuggestion {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  suggestionId String   @unique
+  type         String
+  title        String
+  description  String   @db.Text
+  riskLevel    String   @default("Low")
+  relatedId    String?
+  relatedType  String?
+  actionType   String?
+  actionData   String?  @db.Text
+  status       String   @default("Open")
+  acceptedBy   String?
+  acceptedAt   DateTime?
+  dismissedBy  String?
+  dismissedAt  DateTime?
+}
+
+model AIAnomaly {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  anomalyId   String   @unique
+  type        String
+  title       String
+  description String   @db.Text
+  riskLevel   String   @default("Medium")
+  relatedId   String?
+  relatedType String?
+  data        String?  @db.Text
+  status      String   @default("Open")
+  resolvedBy  String?
+  resolvedAt  DateTime?
+}
+
+model AIChatSession {
+  id        String          @id @default(cuid())
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  sessionId String          @unique
+  userId    String
+  userEmail String          @default("")
+  userRole  String          @default("")
+  title     String?
+  active    Boolean         @default(true)
+  messages  AIChatMessage[]
+}
+
+model AIChatMessage {
+  id        String        @id @default(cuid())
+  createdAt DateTime      @default(now())
+  sessionId String
+  session   AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String        @default("user")
+  content   String        @db.LongText
+  queryType String?
+  dataUsed  String?       @db.Text
+}
+
+model AIAuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  userId      String   @default("")
+  userEmail   String   @default("")
+  userRole    String   @default("")
+  action      String
+  module      String   @default("AI")
+  recordId    String?
+  recordType  String?
+  beforeValue String?  @db.Text
+  afterValue  String?  @db.Text
+  confidence  Float?
+  reason      String?  @db.Text
+  ipAddress   String?
+  details     String?  @db.Text
+}
+
+// ─── CAREERS & RECRUITMENT ────────────────────────────────────────────────────
+
+model CareerJob {
+  id                String    @id @default(cuid())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  title             String
+  slug              String    @unique
+  department        String
+  location          String    @default("Abu Dhabi, UAE")
+  jobType           String    @default("Full-Time")
+  experienceRequired String   @default("1-3 years")
+  salaryRange       String?
+
+  overview          String    @db.Text
+  responsibilities  String    @db.Text
+  requirements      String    @db.Text
+  preferredSkills   String?   @db.Text
+  requiredDocuments String?   @db.Text
+  benefits          String?   @db.Text
+
+  status            String    @default("Draft")
+  featured          Boolean   @default(false)
+  published         Boolean   @default(false)
+  closingDate       DateTime?
+
+  seoTitle          String?
+  seoDescription    String?   @db.Text
+
+  createdBy         String    @default("")
+  updatedBy         String    @default("")
+  deletedAt         DateTime?
+
+  applications      JobApplication[]
+  interviews        Interview[]
+}
+
+model JobApplication {
+  id              String     @id @default(cuid())
+  applicationId   String     @unique
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  submittedAt     DateTime   @default(now())
+
+  jobId           String?
+  job             CareerJob? @relation(fields: [jobId], references: [id])
+  candidateId     String?
+  candidate       Candidate? @relation(fields: [candidateId], references: [id])
+
+  fullName        String
+  phone           String
+  whatsapp        String?
+  email           String
+  nationality     String?
+  currentLocation String?
+  visaStatus      String?
+  yearsExperience String?
+  positionApplied String
+  department      String?
+  currentSalary   String?
+  expectedSalary  String?
+  noticePeriod    String?
+  drivingLicense  Boolean    @default(false)
+  skills          String?    @db.Text
+  message         String?    @db.Text
+
+  status          String     @default("New")
+  rating          Int        @default(0)
+  assignedToId    String?
+  assignedTo      User?      @relation("AssignedApplications", fields: [assignedToId], references: [id])
+
+  consentGiven    Boolean    @default(false)
+  consentText     String?    @db.Text
+  deletedAt       DateTime?
+
+  documents       CandidateDocument[]
+  notes           ApplicationNote[]
+  interviews      Interview[]
+  statusHistory   ApplicationStatusHistory[]
+}
+
+model Candidate {
+  id              String    @id @default(cuid())
+  candidateId     String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  fullName        String
+  phone           String
+  whatsapp        String?
+  email           String?
+  nationality     String?
+  currentLocation String?
+  visaStatus      String?
+  yearsExperience String?
+  skills          String?   @db.Text
+
+  status          String    @default("Active")
+  rating          Int       @default(0)
+  notes           String?   @db.Text
+
+  applications    JobApplication[]
+  documents       CandidateDocument[]
+  interviews      Interview[]
+}
+
+model CandidateDocument {
+  id            String          @id @default(cuid())
+  uploadedAt    DateTime        @default(now())
+
+  candidateId   String?
+  candidate     Candidate?      @relation(fields: [candidateId], references: [id])
+  applicationId String?
+  application   JobApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  fileName      String
+  fileType      String
+  fileUrl       String          @db.VarChar(1000)
+  fileSize      Int             @default(0)
+  documentType  String          @default("CV")
+}
+
+model Interview {
+  id              String         @id @default(cuid())
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  applicationId   String
+  application     JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidateId     String?
+  candidate       Candidate?     @relation(fields: [candidateId], references: [id])
+  jobId           String?
+  job             CareerJob?     @relation(fields: [jobId], references: [id])
+
+  interviewDate   DateTime
+  interviewTime   String?
+  mode            String         @default("In-person")
+  location        String?
+  interviewerId   String?
+  interviewer     User?          @relation("InterviewerUser", fields: [interviewerId], references: [id])
+
+  status          String         @default("Scheduled")
+  result          String?
+  notes           String?        @db.Text
+}
+
+model ApplicationNote {
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+
+  applicationId String
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  authorName    String         @default("")
+  note          String         @db.Text
+}
+
+model ApplicationStatusHistory {
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+
+  applicationId String
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  fromStatus    String
+  toStatus      String
+  changedBy     String         @default("")
+  note          String?        @db.Text
+}
+
+model CareerSetting {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  key         String   @unique
+  value       String   @db.Text
+}
